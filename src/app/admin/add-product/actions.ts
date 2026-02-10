@@ -1,37 +1,55 @@
-'use server';
+// src/app/actions.ts
+"use server";
 
-import { db } from '@/db';
-import { products, productVariants } from '@/db/schema';
-import { revalidatePath } from 'next/cache';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import { db } from "@/app/drizzle";
+import { products } from "@/app/drizzle/schema";
+import { revalidatePath } from "next/cache";
+import { currentUser } from "@clerk/nextjs/server";
 
-export async function addProductWithVariants(formData: FormData) {
-  const { userId } = await auth();
-  if (!userId) redirect('/sign-in');
+// Add new product
+export async function addProduct(formData: FormData) {
+  const user = await currentUser();
+  if (!user) throw new Error("Unauthorized");
 
-  const name = formData.get('name') as string;
-  const description = formData.get('description') as string;
-  const basePrice = Math.round(Number(formData.get('basePrice')) * 100);
-  const category = formData.get('category') as string;
+  const name = formData.get("name") as string;
+  const description = formData.get("description") as string;
+  const basePrice = formData.get("basePrice") as string; // text, e.g. "$29.99" or "Market Price"
 
-  const [newProduct] = await db.insert(products).values({
+  const category = formData.get("category") as string;
+  const sizes = JSON.parse(formData.get("sizes") as string || "[]");
+  const colors = JSON.parse(formData.get("colors") as string || "[]");
+  const images = JSON.parse(formData.get("images") as string || "[]");
+
+  // Per-size price overrides (upcharges)
+  const priceBySizeRaw = formData.get("priceBySize") as string;
+  const priceBySize = priceBySizeRaw ? JSON.parse(priceBySizeRaw) : {};
+
+  // Stock per size
+  const stockBySizeRaw = formData.get("stockBySize") as string;
+  const stockBySize = stockBySizeRaw ? JSON.parse(stockBySizeRaw) : {};
+
+  // Sale / discount
+  const onSale = formData.get("onSale") === "true";
+  const saleType = onSale ? (formData.get("saleType") as "percentage" | "flat") : null;
+  const saleValue = onSale ? (formData.get("saleValue") as string) : null;
+
+  await db.insert(products).values({
     name,
     description,
     basePrice,
+    priceBySize,
+    stockBySize,
+    onSale,
+    saleType,
+    saleValue,
     category,
-  }).returning({ id: products.id });
+    sizes,
+    colors,
+    images,
+  });
 
-  const variants = JSON.parse(formData.get('variants') as string);
+  revalidatePath("/admin");
+  revalidatePath("/");
 
-  for (const v of variants) {
-    await db.insert(productVariants).values({
-      productId: newProduct.id,
-      size: v.size,
-      stock: Number(v.stock),
-    });
-  }
-
-  revalidatePath('/admin');
-  redirect('/admin');
+  return { success: true };
 }

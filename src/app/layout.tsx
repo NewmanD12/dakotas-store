@@ -10,6 +10,9 @@ import { NextSSRPlugin } from "@uploadthing/react/next-ssr-plugin";
 import { extractRouterConfig } from "uploadthing/server";
 import { ourFileRouter } from "./api/uploadthing/core";
 
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -27,13 +30,10 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <head>
-          {/* Mobile responsiveness + iOS safe-area */}
           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         </head>
         <body className={cn("min-h-screen bg-background font-sans antialiased", inter.className)}>
-          <NextSSRPlugin
-            routerConfig={extractRouterConfig(ourFileRouter)}
-          />
+          <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} />
           <div className="relative flex min-h-screen flex-col">
             <Navbar />
             <main className="flex-1">{children}</main>
