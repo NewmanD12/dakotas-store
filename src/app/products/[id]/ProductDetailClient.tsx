@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useCart } from "../../context/CartContext"
 
 type Product = {
   id: number;
@@ -18,10 +18,14 @@ type Product = {
   images: string[];
   stockBySize: Record<string, number> | null;
   isActive: boolean;
+  priceBySize: Record<string, string>; // Assuming this is in the type from schema
 };
 
 export default function ProductDetailClient({ product }: { product: Product }) {
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [mainImageIndex, setMainImageIndex] = useState(0);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const { addToCart } = useCart();
 
   const hasSale = product.onSale && product.saleType && product.saleValue;
 
@@ -40,26 +44,32 @@ export default function ProductDetailClient({ product }: { product: Product }) {
 
   const finalPrice = (calculateFinalPrice() / 100).toFixed(2);
 
-  const openModal = (index: number) => {
-    setSelectedImageIndex(index);
-  };
+  const handleAddToCart = () => {
+    if (!selectedSize) {
+      alert("Please select a size");
+      return;
+    }
+    if (!selectedColor) {
+      alert("Please select a color");
+      return;
+    }
 
-  const closeModal = () => {
-    setSelectedImageIndex(null);
-  };
+    // Calculate price: use size override if exists, else base
+    let priceStr = product.priceBySize[selectedSize] || product.basePrice;
+    priceStr = priceStr.replace(/[$,]/g, "").trim();
+    const priceInCents = isNaN(parseFloat(priceStr)) ? 0 : parseFloat(priceStr) * 100;
 
-  const goToPrev = () => {
-    setSelectedImageIndex((prev) => {
-      if (prev === null) return 0;
-      return prev === 0 ? product.images.length - 1 : prev - 1;
+    addToCart({
+      productId: product.id,
+      name: product.name,
+      price: priceInCents,
+      quantity: 1,
+      image: product.images[0] || "",
+      size: selectedSize,
+      color: selectedColor,
     });
-  };
 
-  const goToNext = () => {
-    setSelectedImageIndex((prev) => {
-      if (prev === null) return 0;
-      return prev === product.images.length - 1 ? 0 : prev + 1;
-    });
+    alert("Added to cart!");
   };
 
   return (
@@ -69,17 +79,14 @@ export default function ProductDetailClient({ product }: { product: Product }) {
           {/* Images */}
           <div className="space-y-8">
             {/* Main Image */}
-            {product.images[0] && (
-              <div
-                className="bg-white rounded-3xl overflow-hidden border-4 border-[#5a7993] shadow-2xl max-h-[600px] mx-auto cursor-pointer"
-                onClick={() => openModal(0)}
-              >
-                <div className="relative w-full h-auto max-h-[600px]">
+            {product.images[mainImageIndex] && (
+              <div className="bg-white rounded-3xl overflow-hidden border-4 border-[#5a7993] shadow-2xl max-h-[700px] mx-auto">
+                <div className="relative w-full h-auto max-h-[700px]">
                   <Image
-                    src={product.images[0]}
+                    src={product.images[mainImageIndex]}
                     alt={product.name}
-                    width={600}
-                    height={600}
+                    width={700}
+                    height={700}
                     className="object-contain w-full h-auto p-8"
                     priority
                   />
@@ -87,20 +94,22 @@ export default function ProductDetailClient({ product }: { product: Product }) {
               </div>
             )}
 
-            {/* Thumbnails - small, contained */}
+            {/* Thumbnails - bigger (200x200) and clickable to swap main image */}
             {product.images.length > 1 && (
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
-                {product.images.slice(1).map((url, i) => (
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-6">
+                {product.images.map((url, i) => (
                   <div
                     key={i}
-                    className="aspect-square bg-white rounded-2xl overflow-hidden border-4 border-[#5a7993] shadow-lg cursor-pointer flex items-center justify-center"
-                    onClick={() => openModal(i + 1)}
+                    className={`aspect-square bg-white rounded-2xl overflow-hidden border-4 shadow-lg cursor-pointer flex items-center justify-center transition-all duration-300 ${
+                      i === mainImageIndex ? "border-[#5a7993] scale-105" : "border-gray-300 hover:border-[#5a7993] hover:scale-105"
+                    }`}
+                    onClick={() => setMainImageIndex(i)}
                   >
                     <Image
                       src={url}
-                      alt={`${product.name} - ${i + 2}`}
-                      width={140}
-                      height={140}
+                      alt={`${product.name} - ${i + 1}`}
+                      width={200}
+                      height={200}
                       className="object-contain p-6 max-w-full max-h-full"
                       loading="lazy"
                     />
@@ -146,7 +155,10 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                   {product.sizes.map((size) => (
                     <button
                       key={size}
-                      className="px-8 py-4 border-4 border-[#5a7993] rounded-2xl text-xl font-medium text-gray-800 hover:bg-[#5a7993] hover:text-white transition transform hover:scale-105"
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-8 py-4 border-4 border-[#5a7993] rounded-2xl text-xl font-medium transition transform hover:scale-105 ${
+                        selectedSize === size ? "bg-[#5a7993] text-white" : "text-gray-800 hover:bg-[#5a7993] hover:text-white"
+                      }`}
                     >
                       {size}
                     </button>
@@ -160,13 +172,16 @@ export default function ProductDetailClient({ product }: { product: Product }) {
                 <h3 className="text-2xl font-bold text-[#5a7993] mb-4">Colors</h3>
                 <div className="flex flex-wrap gap-4">
                   {product.colors.map((color) => (
-                    <span
+                    <button
                       key={color}
-                      className="px-8 py-4 border-4 border-[#5a7993] rounded-2xl text-xl font-medium text-gray-800 hover:bg-[#5a7993] hover:text-white transition transform hover:scale-105"
-                      style={{ backgroundColor: color.toLowerCase(), color: color.toLowerCase() === "black" ? "white" : "black" }}
+                      onClick={() => setSelectedColor(color)}
+                      className={`px-8 py-4 border-4 border-[#5a7993] rounded-2xl text-xl font-medium transition transform hover:scale-105 ${
+                        selectedColor === color ? "bg-[#5a7993] text-white" : "text-gray-800 hover:bg-[#5a7993] hover:text-white"
+                      }`}
+                      style={{ backgroundColor: selectedColor === color ? color.toLowerCase() : "transparent", color: selectedColor === color && color.toLowerCase() === "black" ? "white" : "inherit" }}
                     >
                       {color}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -183,52 +198,14 @@ export default function ProductDetailClient({ product }: { product: Product }) {
               </div>
             )}
 
-            <button className="mt-auto w-full bg-[#5a7993] hover:bg-[#3a5568] text-white font-black py-8 rounded-2xl text-4xl transition transform hover:scale-105">
+            <button
+              onClick={handleAddToCart}
+              className="mt-auto w-full bg-[#5a7993] hover:bg-[#3a5568] text-white font-black py-8 rounded-2xl text-4xl transition transform hover:scale-105"
+            >
               Add to Cart
             </button>
           </div>
         </div>
-
-        {/* Modal - enlarges the clicked image with carousel */}
-        {selectedImageIndex !== null && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4"
-            onClick={closeModal}
-          >
-            <div className="relative max-w-[95vw] max-h-[95vh] w-full" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={closeModal}
-                className="absolute -top-12 right-4 text-white hover:text-gray-300 text-5xl z-10"
-              >
-                <X size={48} />
-              </button>
-
-              {/* Navigation */}
-              <button
-                onClick={goToPrev}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 text-5xl z-10"
-              >
-                <ChevronLeft size={48} />
-              </button>
-
-              <button
-                onClick={goToNext}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 text-5xl z-10"
-              >
-                <ChevronRight size={48} />
-              </button>
-
-              <div className="relative w-full h-full bg-white rounded-3xl overflow-hidden border-4 border-[#5a7993] shadow-2xl">
-                <Image
-                  src={product.images[selectedImageIndex]}
-                  alt="Enlarged product image"
-                  fill
-                  className="object-contain p-4 sm:p-8 lg:p-12"
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -15,6 +15,13 @@
       "when": 1770686338262,
       "tag": "0001_cold_millenium_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770995986613,
+      "tag": "0002_gifted_human_cannonball",
+      "breakpoints": true
     }
   ]
 }
